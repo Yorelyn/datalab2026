@@ -215,38 +215,16 @@ int leftBitCount(int x) {
     if (sign)
         ux = -x;
 
-    /* 找最高位 1 */
     e = 31;
     while (!(ux & (1U << e)))
         e = e - 1;
-
     if (e > 23) {
         shift = e - 23;
-
-        /* 被丢弃的低 shift 位 */
         tail = ux & ((1U << shift) - 1);
-
-        /* 保留最高 24 位 */
         ux = ux >> shift;
-
-        /*
-         * 最近偶数舍入：
-         *
-         * tail >  1000... -> 进1
-         * tail == 1000... 且 ux 为奇数 -> 进1
-         *
-         * 合并为：
-         * tail + (ux & 1) > 2^(shift-1)
-         */
         if (tail + (ux & 1) > (1U << (shift - 1)))
             ux = ux + 1;
-
-        /*
-         * 舍入后若产生第24位以上的进位，
-         * 指数加1。
-         */
         e = e + (ux >> 24);
-
         frac = ux & 0x7fffff;
     }
     else {
@@ -300,96 +278,31 @@ unsigned floatScale2(unsigned uf) {
 
     sign = uf2 >> 31;
     exp = (uf2 >> 20) & 0x7ff;
-
-    /*
-     * exp 最大只能是 0x7ff。
-     * 所以 exp > 0x7fe
-     * 等价于 exp == 0x7ff。
-     *
-     * 即 NaN 或 ±Infinity。
-     */
     if (exp > 0x7fe)
         return 0x80000000u;
-
     e = exp - 1023;
-
-    /* |x| < 1，向 0 截断得到 0 */
     if (e < 0)
         return 0;
-
-    /* 超过 int 可以表示的范围 */
     if (e > 31)
         return 0x80000000u;
-
-    /*
-     * double：
-     *
-     * 1.FFFFFFFFF...
-     *
-     * uf2 低20位保存 fraction 的高20位。
-     * 加回隐藏的 1。
-     */
     mant_hi = (uf2 & 0xfffff) | 0x100000;
-
-    /*
-     * 如果 e <= 20：
-     *
-     * 整数部分全部位于：
-     *
-     * 1 + fraction高20位
-     *
-     * 中，不需要使用 uf1。
-     */
     if (e <= 20) {
         val = mant_hi >> (20 - e);
     }
-    else {
-        /*
-         * e > 20：
-         *
-         * 整数部分还需要 uf1 中的一部分。
-         *
-         * [mant_hi][uf1]
-         *
-         * mant_hi 左移 e-20，
-         * uf1 取最高的 e-20 位。
-         */
+    else 
+    {
         val = (mant_hi << (e - 20))
             | (uf1 >> (52 - e));
     }
-
-    /*
-     * 此时已知 e <= 31。
-     *
-     * 所以 e > 30 就等价于 e == 31，
-     * 不需要使用非法的 ==。
-     */
     if (e > 30) {
-        /*
-         * 正数：
-         * 2^31 及以上全部溢出。
-         */
         if (!sign)
             return 0x80000000u;
-
-        /*
-         * 负数允许截断后的 magnitude 恰好是：
-         *
-         * 0x80000000
-         *
-         * 即 -2147483648。
-         *
-         * 如果低31位存在1，说明已经超过这个范围。
-         */
         if (val & 0x7fffffff)
             return 0x80000000u;
-
         return 0x80000000u;
     }
-
     if (sign)
         return -val;
-
     return val;
 }
 
